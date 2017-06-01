@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# File name: chain_joiner.py
+# File name: chop_chain_joiner.py
 # Author: Matt Robinson
 # Date created: 5/24/2017
 # Date last modified: 5/24/2017
@@ -12,18 +12,20 @@ original PDB file serving as a template and the full sequence serving as the tar
 sequence to model. 
 
 The process of doing this is as follows:
-1. Call make_pdb_seq.py to extract the sequence from the original PDB file with missing residues.
+1. Run chop to check the files for disconnections.
 
-2. Call make_alignment.py to create an alignment file, alignment.ali, between the original PDB structure
+2. Call make_pdb_seq.py to extract the sequence from the original PDB file with missing residues.
+
+3. Call chop_make_alignment.py to create an alignment file, alignment.ali, between the original PDB structure
 with missing residues and the full sequence. 
 
-3. Call make_model.py to create the actual homology model.
+4. Call chop_make_model.py to create the actual homology model.
 
 Please see the headers of each of these scripts for more specific information.
 
-Usage: chain_joiner.py pdb_filename fasta_filename [options]
+Usage: python chop_chain_joiner.py pdb_filename.pdb fasta_filename.fasta [options]
 
-For example, to make a loop model of PDB code 1qg8, I would call it as: 'python chain_joiner.py 1qg8.pdb 1qg8_full_seq.fasta -a'
+For example, to make a loop model of PDB code 1qg8, I would call it as: 'python chop_chain_joiner.py 1qg8.pdb 1qg8_full_seq.fasta -a'
 with both 1qg8.pdb and 1qg8_full_seq.fasta in the local directory. 
 
 Note: the PDB file and fasta file of the full sequence must be in this same directory as this code is run in. 
@@ -69,36 +71,42 @@ def main(argv):
 
 		if opt in ('-f','--fixed_automodel'):
 			#create the chop.log file
-			subprocess.call(['./$MCPROdir/chop/chop -c -i', str(sys.argv[1])])
+			subprocess.call('./chop -c -i ./' + str(sys.argv[1]) + ' > ' + pdb_id + '_chop.log', shell=True)
 
 			#get the sequence from the PDB file:
 			subprocess.call(['python', 'make_pdb_seq.py', str(sys.argv[1])])
 
 			#make the alignment file:
-			subprocess.call(['python', 'parse_chop.py', pdb_id + '_chop.log', pdb_id + ".seq", str(sys.argv[2])])
+			subprocess.call(['python', 'chop_make_alignment.py', pdb_id + '_chop.log', str(sys.argv[1]), pdb_id + ".seq", str(sys.argv[2])])
 
 			#make the model
-			subprocess.call(['python', 'make_model.py', str(sys.argv[1]),'-f'])
+			subprocess.call(['python', 'chop_make_model.py', str(sys.argv[1]),'-f'])
 
 		elif opt in ('-l','--loopmodel'):
+			#create the chop.log file
+			subprocess.call('./chop -c -i ./' + str(sys.argv[1]) + ' > ' + pdb_id + '_chop.log', shell=True)
+
 			#get the sequence from the PDB file:
 			subprocess.call(['python', 'make_pdb_seq.py', str(sys.argv[1])])
 
 			#make the alignment file:
-			subprocess.call(['python', 'make_alignment.py', pdb_id + ".seq", str(sys.argv[2])])
+			subprocess.call(['python', 'chop_make_alignment.py', pdb_id + '_chop.log', str(sys.argv[1]), pdb_id + ".seq", str(sys.argv[2])])
 
 			#make the model
-			subprocess.call(['python', 'make_model.py', str(sys.argv[1]),'-l'])
+			subprocess.call(['python', 'chop_make_model.py', str(sys.argv[1]),'-l'])
 
 		else:
+			#create the chop.log file
+			subprocess.call('./chop -c -i ./' + str(sys.argv[1]) + ' > ' + pdb_id + '_chop.log', shell=True)
+
 			#get the sequence from the PDB file:
 			subprocess.call(['python', 'make_pdb_seq.py', str(sys.argv[1])])
 
 			#make the alignment file:
-			subprocess.call(['python', 'make_alignment.py', pdb_id + ".seq", str(sys.argv[2])])
+			subprocess.call(['python', 'chop_make_alignment.py', pdb_id + '_chop.log', str(sys.argv[1]), pdb_id + ".seq", str(sys.argv[2])])
 
 			#make the model
-			subprocess.call(['python', 'make_model.py', str(sys.argv[1]),'-a'])
+			subprocess.call(['python', 'chop_make_model.py', str(sys.argv[1]),'-a'])
 
 def usage():
 	print("Please see header of python script for details of proper usage")

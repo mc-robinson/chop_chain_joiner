@@ -9,7 +9,7 @@ Description:
 This script extracts the sequence from a PDB file with missing residues. 
 The output is a sequence file of the form [pdb_code].seq
 
-Usage: make_pdb_seq.py pdb_filename
+Usage: python make_pdb_seq.py pdb_filename
 
 Note: the PDB file must be in the same directory as this script.
 """

@@ -8,7 +8,7 @@
 Description:
 This script uses the alignment file, alignment.ali, to make a homology model that includes the previously missing residues. In this case, the original PDB structure is the template while the full sequence is the target of the model. 
 
-Usage: make_model.py pdb_filename [options]
+Usage: python chop_make_model.py pdb_filename.pdb [options]
 
 Input Arguments:
 [optional]
@@ -138,22 +138,29 @@ def find_missing_residues(pdb_seq):
 		for i in range(len(missing_res_l)-1): 
 			#split if not consecutive residues
 			if (not(missing_res_l[i] + 1 == missing_res_l[i+1])):
-				chain_missing_res_lists.append(missing_res[start_idx:i+1])   
+				chain_missing_res_lists.append(missing_res_l[start_idx:i+1])   
 				start_idx = i+1   
 			#also split if end of list
 			if (i==len(missing_res_l)-2):
 				chain_missing_res_lists.append(missing_res_l[start_idx:i+2])
 
 		print(chain_missing_res_lists)
-		#go over all lists and add chain identifier
-		#lst_idx = 0
-		for lst in chain_missing_res_lists:
-			lst = [str(i) for i in lst]
-			lst_idx = 0
-			for atom_str in lst:
-				lst[lst_idx] = atom_str + ':' + chain_labels[chain_number]
-				lst_idx = lst_idx + 1
-			missing_res_lists.append(lst)
+
+		#if only one chain, don't need to add residue numbers. Just make string
+		if (len(chains_l)==1):
+			for lst in chain_missing_res_lists:
+				lst = [str(i) for i in lst]
+				missing_res_lists.append(lst)
+
+		#go over all lists and add chain identifier if there is more than one chain	
+		else:
+			for lst in chain_missing_res_lists:
+				lst = [str(i) for i in lst]
+				lst_idx = 0
+				for atom_str in lst:
+					lst[lst_idx] = atom_str + ':' + chain_labels[chain_number]
+					lst_idx = lst_idx + 1
+				missing_res_lists.append(lst)
 
 		chain_number = chain_number + 1
 
