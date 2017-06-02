@@ -7,7 +7,7 @@
 """
 Description:
 
-Usage: python parse_chop.py chop.log pdbfile.pdb pdbseq.seq fastafile.fasta
+Usage: python chop_make_alignment.py chop.log pdbfile.pdb pdbseq.seq fastafile.fasta
 
 Note: the PDB file must be in the same directory as this script.
 """
@@ -38,11 +38,18 @@ def main():
 
 	pdb_seq = get_pdb_seq(pdb_seq_data)
 	full_seq = get_full_seq(full_seq_data)
-	# print(full_seq)
 
 	#now trim the full sequence so that the non-crystallized ends are removed
 	#full_seq = trim_full_seq(pdb_seq, full_seq)
-	#print(full_seq)
+	print(pdb_seq)
+	print('\n')
+	print(full_seq)
+
+	#need to trim off ligand of pdb_seq
+	pdb_seq = trim_ligand_seq(pdb_seq)[0]
+	print(pdb_seq)
+	ligand_str = trim_ligand_seq(pdb_seq)[1]
+	print(ligand_str)
 
 	#break the two seqs up chain by chain
 	pdb_seq_l = break_into_chains(pdb_seq)
@@ -50,13 +57,19 @@ def main():
 	full_seq_l = break_into_chains(full_seq)
 	#print(full_seq_l)
 
+	#check if they have the same number of chains
+	if not(len(pdb_seq_l) == len(full_seq_l)):
+			print("Fasta sequence has incorrect number of chains")
+			sys.exit(2)
+
 	#loop over the disconnections
 	for l in missing_atom_ls:
-		seq_l = get_missing_seq(l)[0]
-		gap_res_l = get_missing_seq(l)[1]
-		seq_before = get_missing_seq(l)[2]
-		seq_after = get_missing_seq(l)[3]
+		seq_l = get_missing_seq(l)[0] #the seq residues flanking the break
+		gap_res_l = get_missing_seq(l)[1] #residues b/w which break occurs
+		seq_before = get_missing_seq(l)[2] #seq before break
+		seq_after = get_missing_seq(l)[3] #seq after break
 
+		#make into one letter seq to work with fasta file
 		seq = make_one_letter(seq_l)
 		gap_res = make_one_letter(gap_res_l)
 		seq_before = make_one_letter(seq_before)
@@ -67,21 +80,30 @@ def main():
 		print(seq_before)
 		print(seq_after)
 
-		#check if they have the same number of chains
-		if not(len(pdb_seq_l) == len(full_seq_l)):
-			print("Fasta sequence has incorrect number of chains")
-			sys.exit(2)
-
 		#loop over the chains
 		for i in range(len(pdb_seq_l)):
+			#use seqs defined above to test if in this chain
+			test_seq = seq
+			test_seq_before = seq_before
+			test_seq_after = seq_after
+
 			#trim the full sequence so that the non-crystallized ends are removed
-			full_seq_l[i] = trim_full_seq(pdb_seq_l[i], full_seq_l[i])
-			#print(full_seq_l[i])
+			#also check if it is last sequence and need to take off '* character'
+			if (not(i == len(pdb_seq_l) -1)):
+				full_seq_l[i] = trim_full_seq(pdb_seq_l[i], full_seq_l[i])
+			else:
+				full_seq_l[i] = trim_full_seq(pdb_seq_l[i][0:-1], full_seq_l[i][0:-1])
+				full_seq_l[i] = full_seq_l[i] + '*' #add back the '*' end character
+
+			#if there are hetatoms present, need to deal with that
+			if ('.' in pdb_seq_l[i]):
+				test_seq, test_seq_before, test_seq_after = get_hetatm_seq(seq, pdb_seq_l[i], gap_res)
+
 			# check that this is the chain with the disconnection
-			if (seq in pdb_seq_l[i]):
+			if (test_seq in pdb_seq_l[i]):
 				print('hi')
 				#now add the gaps in the string
-				pdb_seq_l[i] = add_gaps(seq_before,seq_after,full_seq_l[i],pdb_seq_l[i])
+				pdb_seq_l[i] = add_gaps(test_seq_before,test_seq_after,full_seq_l[i],pdb_seq_l[i])
 
 	# put seqs back together
 	pdb_seq = '/'.join(pdb_seq_l)
@@ -144,17 +166,19 @@ def get_full_seq(fasta_data):
 		if not(line[0] == '>'):
 			line = line.rstrip() #I could have just messed up some crap with this
 			full_seq = full_seq + line
-		if (line[0] == '>'):
-			full_seq = full_seq + '/'
-			full_seq = full_seq[1:]
+		if (line[0] == '>'): #if have new chain
+			full_seq = full_seq + '/' #to indicate chain break
+	full_seq = full_seq[1:] #get rid of beginning '/'
 	return full_seq + '*'
 
 def trim_full_seq(pdb_seq, full_seq):
 	pdb_letters = pdb_seq
+	#trim off the front
 	for i in range(len(full_seq)):
 		if (full_seq[i:i+5] == pdb_letters[0:5]):
 			full_seq = full_seq[i:]
 			break #needed so proper length
+	#trim off the back (make sure * is not present or will mess it up)
 	for j in reversed(range(len(full_seq)+1)):
 		if (full_seq[j-5:j] == pdb_letters[(len(pdb_letters)-5):]):
 			full_seq = full_seq[0:j]
@@ -189,15 +213,16 @@ def get_missing_seq(missing_atoms_l):
 	res_before = []
 	res_before.append(res_before_l[0])
 	for i in range(1,len(res_before_l)):
-		if ((not(res_before_l[i] == res_before_l[i-1])) and (not(resnum_before_l[i] == resnum_before_l[i-1]))):
+		if ((not(resnum_before_l[i] == resnum_before_l[i-1]))): ##is this wrong
 			res_before.append(res_before_l[i])
 
 	# add the residue names to the list, and make sure only once per residue
 	res_after = []
 	res_after.append(res_after_l[0])
 	for i in range(1,len(res_after_l)):
-		if ((not(res_after_l[i] == res_after_l[i-1])) and (not(resnum_after_l[i] == resnum_after_l[i-1]))):
+		if ((not(resnum_after_l[i] == resnum_after_l[i-1]))):
 			res_after.append(res_after_l[i])
+
 
 	merged_seq = res_before + res_after
 	gap_res = [res_before[-1],res_after[0]]
@@ -215,9 +240,24 @@ def make_one_letter(res_l):
 	seq_str = ''.join(one_letter_code_seq)
 	return seq_str
 
-def find_missing_length(seq_before,full_seq):
+def get_hetatm_seq(merged_seq,pdb_seq,gap_res):
+	for i in range(len(merged_seq), len(pdb_seq)):
+		test_seq = pdb_seq[0:i].replace('.','')
+		if (test_seq[len(test_seq)-len(merged_seq):] == merged_seq):
+			merged_seq = pdb_seq[i-len(merged_seq):i]
+			print(i)
+			break
+
+	seq_before = merged_seq.split(gap_res)[0] + gap_res[0]
+	seq_after = gap_res[1] + merged_seq.split(gap_res)[1]
+
+	return merged_seq, seq_before, seq_after
+
+
+
+#def find_missing_length(seq_before,full_seq):
 	#find where to insert gap
-	gap_idx = full_seq.find(seq_before)
+	#gap_idx = full_seq.find(seq_before)
 
 def insert_dashes(string, index, num):
 	dash_str = ''
@@ -245,6 +285,18 @@ def split_sequence(seq):
 
 def break_into_chains(seq):
 	return seq.split('/')
+
+def trim_ligand_seq(hetatm_seq):
+	ligand_str = ''
+	seq = hetatm_seq[0:-1] #take off the final *
+	new_seq = seq
+	for j in reversed(range(len(seq))):
+		if not(seq[j] == '/' or seq[j] == '.'):
+			new_seq = seq[0:j+1]
+			ligand_str = seq[j+1:]
+			break
+	new_seq = new_seq + '*'
+	return new_seq, ligand_str
 
 
 if __name__ == "__main__":
